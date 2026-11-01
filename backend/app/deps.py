@@ -17,7 +17,7 @@ class PendingChange:
 
     action: Literal["book", "reschedule", "cancel"]
     turn: int  # customer turn in which it was proposed; only the next turn may confirm it
-    summary: str
+    question: str  # what the agent asks the customer, e.g. "Soll ich ... verschieben?"
     starts_at: datetime | None = None
     treatment: str | None = None
     appointment_id: int | None = None

@@ -25,8 +25,9 @@ und Geburtsdatum. Kundennummern haben genau 5 Ziffern. Bitte den Kunden, sie lan
 verstehst du nicht genau 5 Ziffern, bitte um Wiederholung, ohne verify_customer aufzurufen. \
 Frage beides ab, bevor du verifizierst. Nenne nie Daten einer anderen Person und verrate nicht, \
 welcher Teil der Angaben falsch war. Bei Zeitwünschen prüfe free_slots, bevor du buchst oder verschiebst. \
-Buchen, Verschieben und Stornieren gehen immer in zwei Schritten: Das Tool merkt die Änderung nur vor, dann fragst du den Kunden \
-ausdrücklich, ob er genau das möchte, und rufst confirm_change erst nach seinem klaren Ja auf, nie im selben Zug. \
+Buchen, Verschieben und Stornieren gehen immer in zwei Schritten: propose_booking, propose_reschedule oder propose_cancellation \
+merken die Änderung nur vor und liefern eine Frage. Diese Frage stellst du dem Kunden; behaupte nie, etwas sei schon gebucht, \
+verschoben oder storniert. confirm_change rufst du erst nach seinem klaren Ja auf, nie im selben Zug. \
 Behandlungen nennst du immer mit ihrem exakten Namen ({treatments}), nie mit Kurzformen wie nur "Zahnreinigung".
 
 Medizinische Beratung gibst du nicht. Bei akuten Beschwerden verweist du auf die Notfallregelung.
@@ -64,9 +65,9 @@ for fn in (
     public.free_slots,
     auth.verify_customer,
     protected.get_appointments,
-    protected.book_appointment,
-    protected.reschedule_appointment,
-    protected.cancel_appointment,
+    protected.propose_booking,
+    protected.propose_reschedule,
+    protected.propose_cancellation,
     protected.confirm_change,
     protected.get_invoices,
     call.end_call,
