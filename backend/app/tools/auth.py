@@ -10,18 +10,18 @@ from app.deps import CallSession
 
 
 def verify_customer(ctx: RunContext[CallSession], customer_number: str, birth_date: date) -> str:
-    """Schaltet die geschützten Funktionen frei, wenn Kundennummer und Geburtsdatum zusammenpassen.
+    """Unlocks the protected functions if customer number and birth date match.
 
     Args:
-        customer_number: Kundennummer, nur Ziffern (z.B. '10001').
-        birth_date: Geburtsdatum des Kunden als YYYY-MM-DD.
+        customer_number: Customer number, digits only (e.g. '10001').
+        birth_date: The customer's birth date as YYYY-MM-DD.
     """
     session = ctx.deps
     if session.locked:
         return "Verifizierung gesperrt: zu viele Fehlversuche. Bitte an die Praxis wenden."
-    # Spracherkennung liefert Ziffernfolgen oft als "1 0 0 0 1"; Trennzeichen ignorieren
+    # Speech recognition often returns digit sequences as "1 0 0 0 1"; ignore separators
     customer_number = re.sub(r"[\s.\-,]", "", customer_number)
-    # Verschluckte Ziffern sollen keinen Versuch kosten
+    # Swallowed digits should not cost an attempt
     if not re.fullmatch(r"\d{5}", customer_number):
         return "Ungültige Kundennummer: sie hat genau 5 Ziffern. Bitte den Kunden, sie langsam Ziffer für Ziffer zu nennen."
     with session.db_factory() as db:
@@ -31,7 +31,7 @@ def verify_customer(ctx: RunContext[CallSession], customer_number: str, birth_da
         if session.failed_attempts >= settings.max_auth_attempts:
             session.locked = True
             return "Verifizierung gesperrt: zu viele Fehlversuche. Bitte an die Praxis wenden."
-        # gleiche Meldung für falsche Nummer und falsches Datum, damit keine Nummern erraten werden
+        # same message for wrong number and wrong date so numbers cannot be guessed
         return "Kundennummer und Geburtsdatum passen nicht zusammen."
     session.customer_id = customer.id
     return f"Verifiziert: {customer.first_name} {customer.last_name}."

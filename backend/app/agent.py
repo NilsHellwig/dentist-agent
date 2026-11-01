@@ -34,11 +34,11 @@ und verabschiedest dich danach in einem kurzen Satz.
 model = OpenAIChatModel(
     settings.llm_model,
     provider=OllamaProvider(base_url=settings.ollama_base_url),
-    # "none" lässt Gemma Tool-Calls als Text halluzinieren; "low" hält Zuverlässigkeit und Latenz im Rahmen
+    # "none" makes Gemma hallucinate tool calls as text; "low" keeps reliability and latency in check
     settings={"extra_body": {"reasoning_effort": settings.llm_reasoning}, "temperature": 0.2},
 )
 
-agent = Agent(model, name="praxis_agent", deps_type=CallSession, instructions=INSTRUCTIONS)
+agent = Agent(model, name="practice_agent", deps_type=CallSession, instructions=INSTRUCTIONS)
 
 
 @agent.instructions

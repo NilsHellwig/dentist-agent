@@ -9,9 +9,9 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434/v1"
     voice_host_url: str = "http://localhost:8001"
     llm_model: str = "gemma4:e4b"
-    llm_reasoning: str = "low"  # low | none; "none" ist schneller, lässt kleine Modelle aber Tool-Calls als Text ausgeben
+    llm_reasoning: str = "low"  # low | none; "none" is faster but makes small models emit tool calls as text
     max_auth_attempts: int = 3
-    # kommaseparierte Listen
+    # comma-separated lists
     cors_origins: str = "http://localhost:3000"
     allowed_hosts: str = "localhost,127.0.0.1"
 

@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Der Dev-Server wird nur über localhost geöffnet; weitere Hosts bewusst nicht freigegeben
+  // The dev server is only opened via localhost; other hosts are deliberately not allowed
   allowedDevOrigins: ["localhost", "127.0.0.1"],
 };
 

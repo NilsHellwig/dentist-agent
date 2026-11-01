@@ -70,7 +70,7 @@ def test_lockout_after_max_attempts(ctx):
     for _ in range(3):
         verify(ctx, birth=date(2000, 1, 1))
     assert ctx.deps.locked
-    assert "gesperrt" in verify(ctx)  # richtige Daten helfen nach der Sperre nicht
+    assert "gesperrt" in verify(ctx)  # correct data doesn't help after the lock
     assert ctx.deps.customer_id is None
 
 
