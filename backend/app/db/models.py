@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from enum import StrEnum
 
 from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
@@ -11,6 +12,16 @@ SessionLocal = sessionmaker(engine, expire_on_commit=False)
 
 class Base(DeclarativeBase):
     pass
+
+
+class AppointmentStatus(StrEnum):
+    SCHEDULED = "scheduled"
+    CANCELLED = "cancelled"
+
+
+class InvoiceStatus(StrEnum):
+    OPEN = "open"
+    PAID = "paid"
 
 
 class Customer(Base):
@@ -33,7 +44,7 @@ class Appointment(Base):
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     starts_at: Mapped[datetime] = mapped_column(DateTime)
     treatment: Mapped[str] = mapped_column(String(128))
-    status: Mapped[str] = mapped_column(String(16), default="geplant")  # geplant | storniert
+    status: Mapped[str] = mapped_column(String(16), default=AppointmentStatus.SCHEDULED)
 
     customer: Mapped[Customer] = relationship(back_populates="appointments")
 
@@ -46,6 +57,6 @@ class Invoice(Base):
     issued_on: Mapped[date] = mapped_column(Date)
     description: Mapped[str] = mapped_column(String(128))
     amount_eur: Mapped[float] = mapped_column(Numeric(8, 2))
-    status: Mapped[str] = mapped_column(String(16), default="offen")  # offen | bezahlt
+    status: Mapped[str] = mapped_column(String(16), default=InvoiceStatus.OPEN)
 
     customer: Mapped[Customer] = relationship(back_populates="invoices")
