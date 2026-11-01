@@ -102,6 +102,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   );
 }
 
+// Debug view of one tool call: name and args inline, the (truncated) result on expand
 function ToolLine({ line }: { line: Extract<Line, { role: "tool" }> }) {
   const args = Object.entries(line.args)
     .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)

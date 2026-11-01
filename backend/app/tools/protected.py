@@ -10,6 +10,7 @@ from app.db.models import Appointment, AppointmentStatus, Invoice
 from app.deps import CallSession, PendingChange
 from app.tools.public import MONTHS, WEEKDAYS
 
+# Every tool here checks verification itself; the agent can't be trusted to only call them after verify_customer
 NOT_VERIFIED = "Nicht verifiziert: zuerst verify_customer mit Kundennummer und Geburtsdatum aufrufen."
 
 
@@ -69,6 +70,7 @@ def propose_booking(ctx: RunContext[CallSession], starts_at: datetime, treatment
     s = ctx.deps
     if s.customer_id is None:
         return NOT_VERIFIED
+    # check now so the customer isn't asked about a slot that can't be booked anyway
     with s.db_factory() as db:
         try:
             booking.check_slot(db, starts_at)
@@ -80,6 +82,7 @@ def propose_booking(ctx: RunContext[CallSession], starts_at: datetime, treatment
 
 
 def _own_appointment(db, s: CallSession, appointment_id: int) -> Appointment | None:
+    # the model picks IDs; a foreign or cancelled appointment looks exactly like a missing one
     appt = db.get(Appointment, appointment_id)
     if appt is None or appt.customer_id != s.customer_id or appt.status != AppointmentStatus.SCHEDULED:
         return None
@@ -131,6 +134,7 @@ def confirm_change(ctx: RunContext[CallSession]) -> str:
     change = s.pending
     if s.customer_id is None:
         return NOT_VERIFIED
+    # a proposal is only valid for the customer's very next answer; an old one must not be confirmed by a later "ja"
     if change is None or s.turn > change.turn + 1:
         s.pending = None
         return "Es gibt keine offene Änderung. Schlage sie erneut vor und lass sie bestätigen."
@@ -138,6 +142,7 @@ def confirm_change(ctx: RunContext[CallSession]) -> str:
         # enforced in code: the customer must have answered the question first
         return f"Noch nicht bestätigt. Frage den Kunden zuerst: \"{change.question}\""
     s.pending = None
+    # re-check inside booking.*: the slot may have been taken between proposal and yes
     with s.db_factory() as db:
         try:
             if change.action == "book":

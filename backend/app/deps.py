@@ -28,9 +28,9 @@ class CallSession:
     """State of one call; passed to every tool as Pydantic AI deps."""
 
     db_factory: sessionmaker[Session] = SessionLocal
-    customer_id: int | None = None
+    customer_id: int | None = None  # set by verify_customer; unlocks the protected tools
     failed_attempts: int = 0
-    locked: bool = False
+    locked: bool = False  # after max_auth_attempts failures; lasts for the rest of the call
     ended: bool = False
     turn: int = 0  # incremented per customer utterance
     pending: PendingChange | None = None

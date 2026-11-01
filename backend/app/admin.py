@@ -29,6 +29,8 @@ FAILED_LOGIN_DELAY_S = 1.0
 FIRST_CUSTOMER_NUMBER = 10001
 
 
+# Session token = "<expiry unix time>.<HMAC of expiry>": stateless, no session table, invalid once
+# ADMIN_SESSION_SECRET changes
 def _sign(payload: str) -> str:
     return hmac.new(settings.admin_session_secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
 
@@ -40,6 +42,7 @@ def _session_token() -> str:
 
 def _valid_token(token: str | None) -> bool:
     expires, _, sig = (token or "").partition(".")
+    # compare_digest: constant time, so the signature can't be guessed byte by byte
     return expires.isdigit() and hmac.compare_digest(sig, _sign(expires)) and int(expires) > time.time()
 
 
@@ -60,6 +63,7 @@ def get_db() -> Iterator[Session]:
 
 DB = Annotated[Session, Depends(get_db)]
 
+# router: login/logout (only needs the feature enabled); protected: everything else also needs a valid session
 router = APIRouter(prefix="/admin/api", dependencies=[Depends(require_enabled)])
 protected = APIRouter(dependencies=[Depends(require_admin)])
 
@@ -75,8 +79,10 @@ async def login(creds: Credentials, response: Response) -> None:
     user_ok = secrets.compare_digest(creds.username.encode(), settings.admin_username.encode())
     password_ok = secrets.compare_digest(creds.password.encode(), settings.admin_password.encode())
     if not (user_ok and password_ok):
+        # slows down password guessing without a lockout table
         await asyncio.sleep(FAILED_LOGIN_DELAY_S)
         raise HTTPException(401, "Benutzername oder Passwort falsch.")
+    # HttpOnly: unreadable for scripts; SameSite=Strict: not sent on cross-site requests, which covers CSRF
     response.set_cookie(
         COOKIE_NAME,
         _session_token(),
@@ -170,6 +176,7 @@ def _get_or_404(db: Session, model, id_: int):
 
 
 def _book_or_409(fn, *args):
+    # booking rule violations are conflicts; their German message is shown in the dashboard as is
     try:
         return fn(*args)
     except booking.BookingError as e:

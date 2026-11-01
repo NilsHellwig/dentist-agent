@@ -29,6 +29,7 @@ export function useCall() {
   const audio = useRef<HTMLAudioElement | null>(null);
   const playing = useRef(false);
   const queue = useRef<Blob[]>([]);
+  // refs, not state: the WebSocket and audio callbacks need the current value without re-subscribing
   const discard = useRef(false);
   const turnDone = useRef(false);
   const ended = useRef(false);
@@ -121,6 +122,7 @@ export function useCall() {
       if (msg.type === "user_text") setLines((l) => [...l, { role: "user", text: msg.text }]);
       else if (msg.type === "tool_call")
         setLines((l) => [...l, { role: "tool", id: msg.id, name: msg.name, args: msg.args }]);
+      // results arrive after their call; match by id so parallel tool calls stay paired
       else if (msg.type === "tool_result")
         setLines((l) => l.map((line) => (line.role === "tool" && line.id === msg.id ? { ...line, result: msg.result } : line)));
       else if (msg.type === "agent_text") {

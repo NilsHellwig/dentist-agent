@@ -102,6 +102,7 @@ async def call(ws: WebSocket) -> None:
         await ws.close(code=1008)
         return
     await ws.accept()
+    # history carries the conversation across turns; session carries what the tools need (auth, pending change)
     session, history = CallSession(), []
     try:
         await speak(ws, GREETING)
@@ -117,6 +118,7 @@ async def call(ws: WebSocket) -> None:
                 if json.loads(msg["text"]).get("type") == "hangup":
                     break
                 continue
+            # one binary frame = one push-to-talk utterance
             audio = msg.get("bytes") or b""
             if not audio or len(audio) > MAX_AUDIO_BYTES:
                 await ws.send_json({"type": "turn_done"})
@@ -128,9 +130,11 @@ async def call(ws: WebSocket) -> None:
                 await ws.send_json({"type": "turn_done"})
                 continue
             await ws.send_json({"type": "user_text", "text": text})
+            # confirm_change only accepts a proposal from the previous turn, so count customer utterances
             session.turn += 1
             reply = FAREWELL
             try:
+                # a hung LLM must not leave the caller in silence forever
                 async with asyncio.timeout(AGENT_TIMEOUT_S):
                     result = await agent.run(
                         text,

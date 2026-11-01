@@ -42,11 +42,14 @@ model = OpenAIChatModel(
     settings={"extra_body": {"reasoning_effort": settings.llm_reasoning}, "temperature": 0.2},
 )
 
+# One agent for all calls; per-call state (verification, pending change) lives in CallSession deps
 agent = Agent(model, name="practice_agent", deps_type=CallSession, instructions=INSTRUCTIONS)
 
 
 @agent.instructions
 def today(ctx: RunContext[CallSession]) -> str:
+    # Re-evaluated every run: small models can't do date arithmetic, so we hand them a ready-made calendar
+    # to resolve "nächsten Dienstag" against, plus the verification state so they don't re-ask
     now = datetime.now()
     status = "verifiziert" if ctx.deps.customer_id else "nicht verifiziert"
     calendar = ", ".join(
@@ -58,6 +61,7 @@ def today(ctx: RunContext[CallSession]) -> str:
     )
 
 
+# public: always available; protected: check ctx.deps.customer_id themselves and refuse before verify_customer
 for fn in (
     public.search_knowledge,
     public.read_knowledge,

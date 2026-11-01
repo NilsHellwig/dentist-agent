@@ -31,11 +31,14 @@ class BookingError(Exception):
 
 
 def check_slot(db: Session, starts_at: datetime, ignore_id: int | None = None) -> None:
+    """Raises BookingError if the slot can't be booked. `ignore_id` lets an appointment keep its own slot when rescheduled."""
     if starts_at <= datetime.now():
         raise BookingError("Der Zeitpunkt liegt in der Vergangenheit.")
     hours = OPENING_HOURS.get(starts_at.weekday())
+    # closed days have no entry; slots must start on the grid and before closing time
     if hours is None or not (hours[0] <= starts_at.hour < hours[1]) or starts_at.minute % SLOT_MINUTES:
         raise BookingError("Außerhalb der Öffnungszeiten oder nicht im 30-Minuten-Raster.")
+    # cancelled appointments free their slot
     clash = db.scalar(
         select(Appointment.id).where(
             Appointment.starts_at == starts_at,
@@ -48,6 +51,7 @@ def check_slot(db: Session, starts_at: datetime, ignore_id: int | None = None) -
 
 
 def free_slots(db: Session, day: date) -> list[datetime]:
+    """All bookable start times on `day` that are in the future and not taken."""
     hours = OPENING_HOURS.get(day.weekday())
     if hours is None:
         return []
@@ -85,5 +89,6 @@ def reschedule(db: Session, appt: Appointment, new_starts_at: datetime) -> None:
 
 
 def cancel(db: Session, appt: Appointment) -> None:
+    # appointments are never deleted, so the admin dashboard keeps the history
     appt.status = AppointmentStatus.CANCELLED
     db.commit()

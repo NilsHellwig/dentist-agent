@@ -62,7 +62,7 @@ export function SlotPicker({ value, onChange }: { value: string; onChange: (slot
           min={isoDate(new Date())}
           onChange={(e) => {
             setDay(e.target.value);
-            onChange("");
+            onChange(""); // the chosen slot belonged to the old day
           }}
           className={inputClass}
           required
@@ -91,6 +91,7 @@ export function AppointmentActions({ appointment, onChanged }: { appointment: Ap
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // cancelled appointments are final: no actions
   if (appointment.status !== "scheduled") return null;
 
   async function run(action: () => Promise<unknown>) {

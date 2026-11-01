@@ -25,6 +25,7 @@ export const STATUS_LABELS: Record<AppointmentStatus | InvoiceStatus, string> = 
   paid: "Bezahlt",
 };
 
+// All dashboard requests go through here: a 401 means the session expired, so go back to the login
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   const resp = await fetch(`/admin/api${path}`, {
     method: init.method ?? "GET",
