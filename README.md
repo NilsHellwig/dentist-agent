@@ -73,7 +73,7 @@ cp .env.example .env
 
 Open <http://localhost:3000>, click **Gespräch starten** and hold the button (or the space bar) while speaking. The first start downloads the Qwen3-TTS model and takes a few minutes.
 
-`./dev.sh stop | status | logs` · other voice: `TTS_ENGINE=piper ./dev.sh start` (`qwen-design` default, `qwen-serena`, `piper`; the `qwen-design` voice is set by `VOICE_DESCRIPTION`).
+`./dev.sh stop | status | logs` · other voice: `TTS_ENGINE=piper ./dev.sh start` (`qwen-clone` default, `qwen-design`, `qwen-serena`, `piper`). `qwen-clone` speaks with the fixed voice in [`voice-host/voice/`](voice-host/voice) (`reference.wav` + its transcript `reference.txt`); `qwen-design` invents a new voice from `VOICE_DESCRIPTION` on every sentence, which is how a new reference clip is made.
 
 Demo customers: `10001` (born 1988-04-12, appointments and an open invoice) and `10002` (born 2016-09-03, a child). Say the number digit by digit with short pauses, speech recognition drops zeros otherwise.
 

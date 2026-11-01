@@ -15,9 +15,12 @@ from mlx_whisper.audio import load_audio
 from pydantic import BaseModel
 
 MODELS = Path(__file__).parent / "models"
+# reference clip + transcript for qwen-clone; created once with qwen-design
+VOICE_DIR = Path(__file__).parent / "voice"
 
-# TTS_ENGINE: qwen-design (voice from description), qwen-serena (fixed speaker), piper
-TTS_ENGINE = os.environ.get("TTS_ENGINE", "qwen-design")
+# TTS_ENGINE: qwen-clone (fixed voice cloned from voice/reference.wav), qwen-design (new voice from the description
+# on every call, so it varies between sentences), qwen-serena (fixed speaker), piper
+TTS_ENGINE = os.environ.get("TTS_ENGINE", "qwen-clone")
 # Voice description for qwen-design; change freely
 VOICE_DESCRIPTION = os.environ.get(
     "VOICE_DESCRIPTION",
@@ -85,8 +88,28 @@ class QwenTTS:
         return _wav_bytes(np.concatenate(chunks), rate)
 
 
+class QwenCloneTTS:
+    def __init__(self) -> None:
+        from mlx_audio.tts.utils import load_model
+
+        self.model = load_model("mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit")
+        self.ref_audio = str(VOICE_DIR / "reference.wav")
+        self.ref_text = (VOICE_DIR / "reference.txt").read_text(encoding="utf-8").strip()
+
+    def synthesize(self, text: str) -> bytes:
+        chunks, rate = [], 24000
+        for r in self.model.generate(text=text, lang_code="german", ref_audio=self.ref_audio, ref_text=self.ref_text):
+            chunks.append(np.array(r.audio))
+            rate = r.sample_rate
+        return _wav_bytes(np.concatenate(chunks), rate)
+
+
 def _load_tts():
-    return PiperTTS() if TTS_ENGINE == "piper" else QwenTTS(design=TTS_ENGINE == "qwen-design")
+    if TTS_ENGINE == "piper":
+        return PiperTTS()
+    if TTS_ENGINE == "qwen-clone":
+        return QwenCloneTTS()
+    return QwenTTS(design=TTS_ENGINE == "qwen-design")
 
 
 def _normalize(text: str) -> str:
@@ -115,7 +138,7 @@ def _transcribe(path: str) -> str:
     return text
 
 
-tts_engine: PiperTTS | QwenTTS | None = None
+tts_engine: PiperTTS | QwenTTS | QwenCloneTTS | None = None
 
 
 @asynccontextmanager
