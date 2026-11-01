@@ -80,11 +80,13 @@ Demo customers: `10001` (born 1988-04-12, appointments and an open invoice) and 
 ## Customize
 
 - **Practice knowledge:** add or edit Markdown files under [`knowledge/`](knowledge) (e.g. `sonderregelungen/kinder.md`). The agent finds them without code changes.
-- **Opening hours** also live in `OPENING_HOURS` in [`backend/app/tools/public.py`](backend/app/tools/public.py) (used for booking checks). Keep them in sync with the Markdown.
-- **Config:** `.env` (`LLM_MODEL`, `LLM_REASONING`, `CORS_ORIGINS`, `ALLOWED_HOSTS`, `MAX_AUTH_ATTEMPTS`).
+- **Opening hours** also live in `OPENING_HOURS` in [`backend/app/booking.py`](backend/app/booking.py) (used for booking checks by the agent and the admin dashboard). Keep them in sync with the Markdown.
+- **Config:** `.env` (`LLM_MODEL`, `LLM_REASONING`, `CORS_ORIGINS`, `ALLOWED_HOSTS`, `MAX_AUTH_ATTEMPTS`, `ADMIN_*`).
+- **Admin dashboard:** http://localhost:3000/admin — appointments, customers and invoices (German UI). Set `ADMIN_USERNAME`, `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` in `.env`; without them the dashboard is disabled.
+- **Reset demo data:** `docker compose down -v && ./dev.sh start` (the database is reseeded when empty).
 - **Backend dev setup:** `cd backend && uv venv --python 3.12 && uv pip install -r requirements.txt`
 - **Text-only chat for testing:** `cd backend && .venv/bin/python -m app.cli "Hallo" "…"` (needs the stack from `./dev.sh start`).
-- **Tests:** `cd backend && .venv/bin/python -m pytest` (auth lock-out, foreign-data access, booking rules, path traversal).
+- **Tests:** `cd backend && .venv/bin/python -m pytest` (auth lock-out, foreign-data access, booking rules, path traversal, admin login and actions).
 
 ## Notes
 
