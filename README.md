@@ -50,7 +50,7 @@ sequenceDiagram
 ## Requirements
 
 - macOS on Apple Silicon (MLX models), about 16 GB free RAM
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/), [Ollama](https://ollama.com), [Miniforge/conda](https://github.com/conda-forge/miniforge), `ffmpeg` (`brew install ffmpeg`)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/), [Ollama](https://ollama.com), [uv](https://docs.astral.sh/uv/), `ffmpeg` (`brew install ffmpeg`)
 - Disk space: about 20 GB for models (LLM 9.5 GB, Qwen3-TTS, Whisper 1.6 GB)
 
 ## Run
@@ -60,9 +60,11 @@ sequenceDiagram
 ollama pull gemma4:e4b
 
 # 2. Voice host (speech-to-text / text-to-speech runs on the host for GPU access)
-conda create -n dentist-agent python=3.12 -y      # other name: set CONDA_ENV in .env
-conda run -n dentist-agent pip install -r voice-host/requirements.txt
-conda run -n dentist-agent python voice-host/download_models.py
+cd voice-host
+uv venv --python 3.12
+uv pip install -r requirements.txt
+.venv/bin/python download_models.py
+cd ..
 
 # 3. Everything
 cp .env.example .env
@@ -71,7 +73,7 @@ cp .env.example .env
 
 Open <http://localhost:3000>, click **Gespräch starten** and hold the button (or the space bar) while speaking. The first start downloads the Qwen3-TTS model and takes a few minutes.
 
-`./dev.sh stop | status | logs` · other conda env: `CONDA_ENV` in `.env` · other voice: `TTS_ENGINE=piper ./dev.sh start` (`qwen-design` default, `qwen-serena`, `piper`; the `qwen-design` voice is set by `VOICE_DESCRIPTION`).
+`./dev.sh stop | status | logs` · other voice: `TTS_ENGINE=piper ./dev.sh start` (`qwen-design` default, `qwen-serena`, `piper`; the `qwen-design` voice is set by `VOICE_DESCRIPTION`).
 
 Demo customers: `10001` (born 1988-04-12, appointments and an open invoice) and `10002` (born 2016-09-03, a child). Say the number digit by digit with short pauses, speech recognition drops zeros otherwise.
 
@@ -80,8 +82,9 @@ Demo customers: `10001` (born 1988-04-12, appointments and an open invoice) and 
 - **Practice knowledge:** add or edit Markdown files under [`knowledge/`](knowledge) (e.g. `sonderregelungen/kinder.md`). The agent finds them without code changes.
 - **Opening hours** also live in `OPENING_HOURS` in [`backend/app/tools/public.py`](backend/app/tools/public.py) (used for booking checks). Keep them in sync with the Markdown.
 - **Config:** `.env` (`LLM_MODEL`, `LLM_REASONING`, `CORS_ORIGINS`, `ALLOWED_HOSTS`, `MAX_AUTH_ATTEMPTS`).
-- **Text-only chat for testing:** `cd backend && python -m app.cli "Hallo" "…"`.
-- **Tests:** `cd backend && pytest` (auth lock-out, foreign-data access, booking rules, path traversal).
+- **Backend dev setup:** `cd backend && uv venv --python 3.12 && uv pip install -r requirements.txt`
+- **Text-only chat for testing:** `cd backend && .venv/bin/python -m app.cli "Hallo" "…"` (needs the stack from `./dev.sh start`).
+- **Tests:** `cd backend && .venv/bin/python -m pytest` (auth lock-out, foreign-data access, booking rules, path traversal).
 
 ## Notes
 
