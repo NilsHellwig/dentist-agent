@@ -10,7 +10,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app import voice
+from app import admin, voice
 from app.agent import agent
 from app.config import settings
 from app.db.seed import init_db
@@ -47,6 +47,7 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
+app.include_router(admin.router)
 
 
 @app.get("/health")

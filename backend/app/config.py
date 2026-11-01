@@ -11,9 +11,18 @@ class Settings(BaseSettings):
     llm_model: str = "gemma4:e4b"
     llm_reasoning: str = "low"  # low | none; "none" is faster but makes small models emit tool calls as text
     max_auth_attempts: int = 3
+    # admin dashboard; disabled (503) unless all three are set
+    admin_username: str = ""
+    admin_password: str = ""
+    admin_session_secret: str = ""
+    admin_cookie_secure: bool = False  # true once served over HTTPS
     # comma-separated lists
     cors_origins: str = "http://localhost:3000"
     allowed_hosts: str = "localhost,127.0.0.1"
+
+    @property
+    def admin_enabled(self) -> bool:
+        return bool(self.admin_username and self.admin_password and self.admin_session_secret)
 
     @property
     def cors_origin_list(self) -> list[str]:
