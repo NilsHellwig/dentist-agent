@@ -4,9 +4,10 @@ from pydantic import BaseModel
 from pydantic_ai import RunContext
 from sqlalchemy import select
 
-from app.db.models import Appointment, Invoice
+from app import booking
+from app.db.models import Appointment, AppointmentStatus, Invoice
 from app.deps import CallSession
-from app.tools.public import OPENING_HOURS, SLOT_MINUTES, WEEKDAYS
+from app.tools.public import WEEKDAYS
 
 NOT_VERIFIED = "Nicht verifiziert: zuerst verify_customer mit Kundennummer und Geburtsdatum aufrufen."
 
@@ -14,7 +15,7 @@ NOT_VERIFIED = "Nicht verifiziert: zuerst verify_customer mit Kundennummer und G
 class AppointmentInfo(BaseModel):
     id: int
     starts_at: datetime
-    weekday: str  # vom Code berechnet, kleine Modelle raten Wochentage sonst falsch
+    weekday: str  # computed in code; small models get weekdays wrong otherwise
     treatment: str
 
 
@@ -24,66 +25,55 @@ class InvoiceInfo(BaseModel):
     status: str
 
 
-def _check_slot(starts_at: datetime, db, ignore_id: int | None = None) -> str | None:
-    if starts_at <= datetime.now():
-        return "Der Zeitpunkt liegt in der Vergangenheit."
-    hours = OPENING_HOURS.get(starts_at.weekday())
-    if hours is None or not (hours[0] <= starts_at.hour < hours[1]) or starts_at.minute % SLOT_MINUTES:
-        return "Außerhalb der Öffnungszeiten oder nicht im 30-Minuten-Raster."
-    clash = db.scalar(
-        select(Appointment.id).where(
-            Appointment.starts_at == starts_at, Appointment.status == "geplant", Appointment.id != (ignore_id or 0)
-        )
-    )
-    return "Dieser Termin ist bereits vergeben." if clash else None
-
-
 def get_appointments(ctx: RunContext[CallSession]) -> list[AppointmentInfo] | str:
-    """Zeigt die kommenden Termine des verifizierten Kunden."""
+    """Lists the upcoming appointments of the verified customer."""
     s = ctx.deps
     if s.customer_id is None:
         return NOT_VERIFIED
     with s.db_factory() as db:
         rows = db.scalars(
             select(Appointment)
-            .where(Appointment.customer_id == s.customer_id, Appointment.status == "geplant", Appointment.starts_at > datetime.now())
+            .where(
+                Appointment.customer_id == s.customer_id,
+                Appointment.status == AppointmentStatus.SCHEDULED,
+                Appointment.starts_at > datetime.now(),
+            )
             .order_by(Appointment.starts_at)
         )
         return [AppointmentInfo(id=a.id, starts_at=a.starts_at, weekday=WEEKDAYS[a.starts_at.weekday()], treatment=a.treatment) for a in rows]
 
 
 def book_appointment(ctx: RunContext[CallSession], starts_at: datetime, treatment: str) -> str:
-    """Bucht einen Termin für den verifizierten Kunden. Zeit vorher mit free_slots prüfen.
+    """Books an appointment for the verified customer. Check the time with free_slots first.
 
     Args:
-        starts_at: Beginn als YYYY-MM-DDTHH:MM.
-        treatment: Behandlung, z.B. 'Kontrolluntersuchung'.
+        starts_at: Start as YYYY-MM-DDTHH:MM.
+        treatment: Treatment in German, e.g. 'Kontrolluntersuchung'.
     """
     s = ctx.deps
     if s.customer_id is None:
         return NOT_VERIFIED
     with s.db_factory() as db:
-        if error := _check_slot(starts_at, db):
-            return error
-        appt = Appointment(customer_id=s.customer_id, starts_at=starts_at, treatment=treatment)
-        db.add(appt)
-        db.commit()
+        try:
+            appt = booking.book(db, s.customer_id, starts_at, treatment)
+        except booking.BookingError as e:
+            return str(e)
         return f"Gebucht: {treatment} am {WEEKDAYS[starts_at.weekday()]}, {starts_at:%d.%m.%Y um %H:%M} Uhr (Termin-ID {appt.id})."
 
 
 def _own_appointment(db, s: CallSession, appointment_id: int) -> Appointment | None:
     appt = db.get(Appointment, appointment_id)
-    if appt is None or appt.customer_id != s.customer_id or appt.status != "geplant":
+    if appt is None or appt.customer_id != s.customer_id or appt.status != AppointmentStatus.SCHEDULED:
         return None
     return appt
 
 
 def reschedule_appointment(ctx: RunContext[CallSession], appointment_id: int, new_starts_at: datetime) -> str:
-    """Verschiebt einen eigenen Termin. Neue Zeit vorher mit free_slots prüfen.
+    """Moves one of the customer's own appointments. Check the new time with free_slots first.
 
     Args:
-        appointment_id: ID aus get_appointments.
-        new_starts_at: Neuer Beginn als YYYY-MM-DDTHH:MM.
+        appointment_id: ID from get_appointments.
+        new_starts_at: New start as YYYY-MM-DDTHH:MM.
     """
     s = ctx.deps
     if s.customer_id is None:
@@ -92,18 +82,18 @@ def reschedule_appointment(ctx: RunContext[CallSession], appointment_id: int, ne
         appt = _own_appointment(db, s, appointment_id)
         if appt is None:
             return "Termin nicht gefunden."
-        if error := _check_slot(new_starts_at, db, ignore_id=appt.id):
-            return error
-        appt.starts_at = new_starts_at
-        db.commit()
+        try:
+            booking.reschedule(db, appt, new_starts_at)
+        except booking.BookingError as e:
+            return str(e)
         return f"Verschoben auf {WEEKDAYS[new_starts_at.weekday()]}, {new_starts_at:%d.%m.%Y um %H:%M} Uhr."
 
 
 def cancel_appointment(ctx: RunContext[CallSession], appointment_id: int) -> str:
-    """Storniert einen eigenen Termin. Vorher beim Kunden bestätigen lassen.
+    """Cancels one of the customer's own appointments. Have the customer confirm first.
 
     Args:
-        appointment_id: ID aus get_appointments.
+        appointment_id: ID from get_appointments.
     """
     s = ctx.deps
     if s.customer_id is None:
@@ -112,13 +102,12 @@ def cancel_appointment(ctx: RunContext[CallSession], appointment_id: int) -> str
         appt = _own_appointment(db, s, appointment_id)
         if appt is None:
             return "Termin nicht gefunden."
-        appt.status = "storniert"
-        db.commit()
+        booking.cancel(db, appt)
         return "Termin storniert."
 
 
 def get_invoices(ctx: RunContext[CallSession]) -> list[InvoiceInfo] | str:
-    """Zeigt Rechnungen des verifizierten Kunden mit Status (offen/bezahlt)."""
+    """Lists the verified customer's invoices with status (open/paid)."""
     s = ctx.deps
     if s.customer_id is None:
         return NOT_VERIFIED

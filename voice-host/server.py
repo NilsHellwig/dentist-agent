@@ -16,22 +16,22 @@ from pydantic import BaseModel
 
 MODELS = Path(__file__).parent / "models"
 
-# TTS_ENGINE: qwen-design (Stimme per Beschreibung), qwen-serena (feste Sprecherin), piper
+# TTS_ENGINE: qwen-design (voice from description), qwen-serena (fixed speaker), piper
 TTS_ENGINE = os.environ.get("TTS_ENGINE", "qwen-design")
-# Beschreibung der Stimme für qwen-design; frei änderbar
+# Voice description for qwen-design; change freely
 VOICE_DESCRIPTION = os.environ.get(
     "VOICE_DESCRIPTION",
     "Eine junge deutsche Frau mit warmer, freundlicher und lebhafter Stimme, klare Aussprache, "
     "natürlich und leicht lächelnd, wie eine sympathische Praxisassistentin am Telefon.",
 )
-PIPER_VOICE = os.environ.get("PIPER_VOICE", "ramona/low")  # <sprecher>/<qualität>
+PIPER_VOICE = os.environ.get("PIPER_VOICE", "ramona/low")  # <speaker>/<quality>
 
-# Whisper erfindet bei Stille/Rauschen Phrasen wie "Vielen Dank." (no_speech_prob bleibt dabei ~0).
-# Deshalb: Lautstärke-Gate vor der Erkennung und Filter für bekannte Halluzinationen allein im Ergebnis.
+# Whisper invents phrases like "Vielen Dank." on silence/noise (no_speech_prob stays ~0).
+# Hence: a loudness gate before recognition and a filter for known hallucinations as the sole result.
 MIN_SPEECH_RMS = 0.01
 HALLUCINATIONS = {"vielen dank", "danke", "vielen dank fürs zuschauen", "bis zum nächsten mal", "tschüss"}
 
-# MLX-Streams sind threadgebunden: alle Modellarbeit läuft in genau einem Worker-Thread (das serialisiert auch die GPU)
+# MLX streams are thread-bound: all model work runs in exactly one worker thread (which also serializes the GPU)
 worker = ThreadPoolExecutor(max_workers=1)
 
 
@@ -121,7 +121,7 @@ tts_engine: PiperTTS | QwenTTS | None = None
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global tts_engine
-    # Modelle beim Start laden und einmal aufwärmen, damit der erste Anruf nicht 3-10 s extra braucht
+    # Load models at startup and warm up once so the first call doesn't take 3-10 s extra
     tts_engine = await in_worker(_load_tts)
     await in_worker(tts_engine.synthesize, "Guten Tag.")
     yield
@@ -141,7 +141,7 @@ def health() -> dict[str, str]:
 
 @app.post("/stt")
 async def stt(audio: UploadFile = File(...)) -> dict[str, str]:
-    # ffmpeg dekodiert über eine Datei, daher auf Platte (webm/wav/m4a möglich)
+    # ffmpeg decodes from a file, hence write to disk (webm/wav/m4a possible)
     with tempfile.NamedTemporaryFile(suffix=Path(audio.filename or "a.wav").suffix or ".wav") as tmp:
         tmp.write(await audio.read())
         tmp.flush()

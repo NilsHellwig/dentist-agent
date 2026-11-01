@@ -6,12 +6,12 @@ from app.db.models import SessionLocal
 
 
 class CallEnded(Exception):
-    """Von end_call ausgelöst: bricht den Agentenlauf ab, damit keine überflüssige LLM-Runde nach dem Abschied läuft."""
+    """Raised by end_call: aborts the agent run so no needless LLM round runs after the goodbye."""
 
 
 @dataclass
 class CallSession:
-    """Zustand eines Gesprächs; wird als Pydantic-AI-Deps an jedes Tool gereicht."""
+    """State of one call; passed to every tool as Pydantic AI deps."""
 
     db_factory: sessionmaker[Session] = SessionLocal
     customer_id: int | None = None

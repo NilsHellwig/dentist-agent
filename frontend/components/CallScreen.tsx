@@ -15,7 +15,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   const closing = phase === "closing";
   const endRef = useRef<HTMLDivElement>(null);
 
-  // Leertaste als Push-to-talk
+  // Space bar as push-to-talk
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.code !== "Space" || e.repeat) return;

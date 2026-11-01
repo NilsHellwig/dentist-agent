@@ -1,4 +1,4 @@
-"""Text-Chat zum Testen des Agenten: python -m app.cli [Nachricht ...]"""
+"""Text chat for testing the agent: python -m app.cli [message ...]"""
 
 import sys
 

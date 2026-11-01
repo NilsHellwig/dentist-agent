@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Startet/stoppt alles: Voice-Host (uv-venv, GPU) auf dem Host, Postgres/Backend/Frontend in Docker.
-# Nutzung: ./dev.sh start | stop | status | logs
+# Starts/stops everything: voice host (uv venv, GPU) on the host, Postgres/backend/frontend in Docker.
+# Usage: ./dev.sh start | stop | status | logs
 set -euo pipefail
 cd "$(dirname "$0")"
 

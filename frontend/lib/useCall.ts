@@ -45,7 +45,7 @@ export function useCall() {
     setPhase("idle");
   }, []);
 
-  // Nach Audio-Ende und turn_done: entweder nächste Runde oder Gespräch beenden
+  // After audio ends and turn_done: either next turn or end the call
   const settle = useCallback(() => {
     if (playing.current || !turnDone.current) return;
     if (ended.current) {
@@ -56,7 +56,7 @@ export function useCall() {
     }
   }, [reset]);
 
-  // Antworten kommen satzweise als einzelne Clips; sie werden der Reihe nach abgespielt
+  // Replies arrive sentence by sentence as separate clips; they are played in order
   const playNext = useCallback(() => {
     const data = queue.current.shift();
     if (!data) {
@@ -78,7 +78,7 @@ export function useCall() {
     el.play().catch(done);
   }, [settle]);
 
-  // Laufende Ausgabe abbrechen; noch eintreffende Clips derselben Antwort werden verworfen
+  // Abort current playback; clips of the same reply that still arrive are discarded
   const stopAudio = useCallback(() => {
     const el = audio.current;
     audio.current = null;
@@ -133,8 +133,8 @@ export function useCall() {
       }
     };
     socket.onclose = () => {
-      if (ws.current !== socket) return; // von uns selbst geschlossen
-      // Server hat nach "ended" geschlossen: Verabschiedung läuft über settle()
+      if (ws.current !== socket) return; // closed by ourselves
+      // Server closed after "ended": the farewell runs via settle()
       if (!ended.current) {
         setError((e) => e ?? "Verbindung zum Server verloren.");
         reset();
@@ -146,7 +146,7 @@ export function useCall() {
   const startTalking = useCallback(() => {
     if (!stream.current || ws.current?.readyState !== WebSocket.OPEN) return;
     if (status !== "ready" && status !== "speaking") return;
-    // Unterbrechen erlaubt: laufende Ausgabe stoppen
+    // Interrupting is allowed: stop current playback
     stopAudio();
     const rec = new MediaRecorder(stream.current, { mimeType: pickMimeType() });
     const chunks: Blob[] = [];

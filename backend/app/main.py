@@ -10,7 +10,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app import voice
+from app import admin, voice
 from app.agent import agent
 from app.config import settings
 from app.db.seed import init_db
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 async def warm_up() -> None:
-    """LLM und Begrüßungs-Audio vorladen; der erste Anruf soll nicht die Ladezeit bezahlen."""
+    """Preload the LLM and greeting audio so the first call doesn't pay the load time."""
     ollama_root = settings.ollama_base_url.removesuffix("/v1")
     with contextlib.suppress(Exception):
         async with httpx.AsyncClient(timeout=120) as client:
@@ -47,6 +47,7 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
+app.include_router(admin.router)
 
 
 @app.get("/health")
@@ -64,19 +65,19 @@ EMPTY_REPLY = "Das habe ich leider nicht verstanden. Können Sie das bitte wiede
 
 async def speak(ws: WebSocket, text: str) -> None:
     await ws.send_json({"type": "agent_text", "text": text})
-    # Satz für Satz: der Kunde hört Satz 1, während Satz 2 noch synthetisiert wird
+    # Sentence by sentence: the customer hears sentence 1 while sentence 2 is still being synthesized
     for sentence in voice.split_sentences(text):
         await ws.send_bytes(await voice.synthesize(sentence))
 
 
 @app.websocket("/ws/call")
 async def call(ws: WebSocket) -> None:
-    """Protokoll: Client sendet Audio als Binary-Frame (eine Äußerung) oder {"type":"hangup"}.
+    """Protocol: client sends audio as a binary frame (one utterance) or {"type":"hangup"}.
 
-    Server sendet je Zug: user_text, agent_text (ganzer Text), dann je Satz ein Binary-Frame (WAV), dann turn_done.
-    Nach end_call oder hangup folgt {"type":"ended"} und der Server schließt.
+    Per turn the server sends: user_text, agent_text (full text), then one binary frame (WAV) per sentence, then turn_done.
+    After end_call or hangup, {"type":"ended"} follows and the server closes.
     """
-    # CORS gilt nicht für WebSockets, daher Origin selbst prüfen
+    # CORS doesn't apply to WebSockets, so check the origin ourselves
     if ws.headers.get("origin") not in settings.cors_origin_list:
         await ws.close(code=1008)
         return
@@ -89,7 +90,7 @@ async def call(ws: WebSocket) -> None:
             try:
                 msg = await asyncio.wait_for(ws.receive(), IDLE_TIMEOUT_S)
             except asyncio.TimeoutError:
-                break  # Kunde ist still geworden: Gespräch beenden
+                break  # customer went silent: end the call
             if msg["type"] == "websocket.disconnect":
                 return
             if msg.get("text") is not None:
@@ -114,8 +115,8 @@ async def call(ws: WebSocket) -> None:
                 history = result.all_messages()
                 reply = result.output.strip() or EMPTY_REPLY
             except CallEnded:
-                pass  # fester Abschiedssatz; das kleine Modell formuliert ihn oft unpassend
-            logger.info("Zug: stt=%.1fs llm=%.1fs", t_stt, time.perf_counter() - t0 - t_stt)
+                pass  # fixed farewell; the small model often phrases it awkwardly
+            logger.info("Turn: stt=%.1fs llm=%.1fs", t_stt, time.perf_counter() - t0 - t_stt)
             await speak(ws, reply)
             await ws.send_json({"type": "turn_done"})
         await ws.send_json({"type": "ended"})
@@ -123,7 +124,7 @@ async def call(ws: WebSocket) -> None:
     except WebSocketDisconnect:
         return
     except Exception:
-        logger.exception("Fehler im Gespräch")
+        logger.exception("Error during call")
         with contextlib.suppress(Exception):
             await ws.send_json({"type": "error", "text": "Technischer Fehler. Bitte versuchen Sie es erneut."})
             await ws.close(code=1011)

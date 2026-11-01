@@ -11,7 +11,7 @@ _CACHE_SIZE = 64
 
 
 def split_sentences(text: str) -> list[str]:
-    """Teilt an Satzenden, damit der erste Satz schon spielt, während der nächste synthetisiert wird."""
+    """Splits at sentence ends so the first sentence plays while the next one is being synthesized."""
     parts = [p.strip() for p in re.split(r"(?<=[.!?])\s+", text.strip()) if p.strip()]
     return parts or [text.strip()]
 
@@ -23,7 +23,7 @@ async def transcribe(audio: bytes) -> str:
 
 
 async def synthesize(text: str) -> bytes:
-    # Wiederkehrende Sätze (Begrüßung, Abschied, Standardfragen) nicht erneut synthetisieren
+    # Don't re-synthesize recurring sentences (greeting, farewell, standard questions)
     if text in _cache:
         _cache.move_to_end(text)
         return _cache[text]

@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
 
-from app.db.models import Appointment, Base, Customer, Invoice, SessionLocal, engine
+from app.db.models import Appointment, Base, Customer, Invoice, InvoiceStatus, SessionLocal, engine
 
 
 def init_db() -> None:
@@ -10,7 +10,7 @@ def init_db() -> None:
     with SessionLocal() as db:
         if db.scalar(select(Customer.id).limit(1)) is not None:
             return
-        # Termine immer auf Werktage innerhalb der Öffnungszeiten legen
+        # Always place appointments on weekdays within opening hours
         today = datetime.now().replace(hour=9, minute=30, second=0, microsecond=0)
         next_monday = today + timedelta(days=7 - today.weekday())
         anna = Customer(customer_number="10001", first_name="Anna", last_name="Berg", birth_date=date(1988, 4, 12))
@@ -21,7 +21,7 @@ def init_db() -> None:
             Appointment(customer=anna, starts_at=next_monday, treatment="Professionelle Zahnreinigung"),
             Appointment(customer=anna, starts_at=next_monday + timedelta(weeks=8), treatment="Kontrolluntersuchung"),
             Appointment(customer=lukas, starts_at=next_monday + timedelta(days=2, hours=5, minutes=30), treatment="Kinder-Kontrolle"),
-            Invoice(customer=anna, issued_on=date.today() - timedelta(days=20), description="Füllung 36", amount_eur=48.50, status="offen"),
-            Invoice(customer=anna, issued_on=date.today() - timedelta(days=200), description="Zahnreinigung", amount_eur=89.00, status="bezahlt"),
+            Invoice(customer=anna, issued_on=date.today() - timedelta(days=20), description="Füllung 36", amount_eur=48.50, status=InvoiceStatus.OPEN),
+            Invoice(customer=anna, issued_on=date.today() - timedelta(days=200), description="Zahnreinigung", amount_eur=89.00, status=InvoiceStatus.PAID),
         ])
         db.commit()
