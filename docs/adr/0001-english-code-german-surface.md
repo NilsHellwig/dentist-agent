@@ -22,7 +22,7 @@ German stays wherever a human or the speaking model consumes domain text:
 - tool result messages and booking errors (`app/booking.py`) — the model relays them and the admin UI shows them verbatim
 - CLI and `dev.sh` output
 
-Status values are translated for display in the frontend only.
+Status values are translated for display in the frontend only. Treatment names are the exception among stored values: they are domain text the agent speaks verbatim, so `Treatment` has English member names but German values.
 
 ## Consequences
 

@@ -8,7 +8,9 @@ const FAREWELL_PAUSE_MS = 1800;
 
 export type Phase = "idle" | "connecting" | "live" | "closing";
 export type Status = "thinking" | "speaking" | "ready" | "listening";
-export type Line = { role: "user" | "agent"; text: string };
+export type Line =
+  | { role: "user" | "agent"; text: string }
+  | { role: "tool"; id: string; name: string; args: Record<string, unknown>; result?: string };
 
 function pickMimeType(): string | undefined {
   return ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((t) => MediaRecorder.isTypeSupported(t));
@@ -27,6 +29,7 @@ export function useCall() {
   const audio = useRef<HTMLAudioElement | null>(null);
   const playing = useRef(false);
   const queue = useRef<Blob[]>([]);
+  // refs, not state: the WebSocket and audio callbacks need the current value without re-subscribing
   const discard = useRef(false);
   const turnDone = useRef(false);
   const ended = useRef(false);
@@ -117,6 +120,11 @@ export function useCall() {
       }
       const msg = JSON.parse(event.data as string);
       if (msg.type === "user_text") setLines((l) => [...l, { role: "user", text: msg.text }]);
+      else if (msg.type === "tool_call")
+        setLines((l) => [...l, { role: "tool", id: msg.id, name: msg.name, args: msg.args }]);
+      // results arrive after their call; match by id so parallel tool calls stay paired
+      else if (msg.type === "tool_result")
+        setLines((l) => l.map((line) => (line.role === "tool" && line.id === msg.id ? { ...line, result: msg.result } : line)));
       else if (msg.type === "agent_text") {
         turnDone.current = false;
         setLines((l) => [...l, { role: "agent", text: msg.text }]);

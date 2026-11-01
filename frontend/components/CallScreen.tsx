@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { Status, useCall } from "@/lib/useCall";
+import type { Line, Status, useCall } from "@/lib/useCall";
 
 const LABELS: Record<Status, string> = {
   thinking: "Einen Moment …",
@@ -65,14 +65,18 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
       </section>
 
       <section className="mt-10 flex-1 space-y-4 overflow-y-auto pb-6" aria-label="Gesprächsverlauf">
-        {lines.map((l, i) => (
-          <p
-            key={i}
-            className={`animate-fade-in text-[15px] leading-relaxed ${l.role === "user" ? "text-right text-muted" : "text-ink"}`}
-          >
-            {l.text}
-          </p>
-        ))}
+        {lines.map((l, i) =>
+          l.role === "tool" ? (
+            <ToolLine key={i} line={l} />
+          ) : (
+            <p
+              key={i}
+              className={`animate-fade-in text-[15px] leading-relaxed ${l.role === "user" ? "text-right text-muted" : "text-ink"}`}
+            >
+              {l.text}
+            </p>
+          ),
+        )}
         <div ref={endRef} />
       </section>
 
@@ -95,5 +99,22 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         <p className="text-xs text-muted">Taste halten oder Leertaste gedrückt halten</p>
       </footer>
     </div>
+  );
+}
+
+// Debug view of one tool call: name and args inline, the (truncated) result on expand
+function ToolLine({ line }: { line: Extract<Line, { role: "tool" }> }) {
+  const args = Object.entries(line.args)
+    .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
+    .join(", ");
+  return (
+    <details className="animate-fade-in group font-mono text-xs text-muted">
+      <summary className="cursor-pointer list-none truncate hover:text-ink">
+        <span className={line.result === undefined ? "animate-pulse" : ""}>{line.result === undefined ? "◌" : "●"}</span>{" "}
+        {line.name}
+        {args && <span className="opacity-70">({args})</span>}
+      </summary>
+      <pre className="mt-1 whitespace-pre-wrap break-words border-l border-line pl-3 opacity-80">{line.result ?? "läuft …"}</pre>
+    </details>
   );
 }

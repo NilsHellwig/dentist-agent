@@ -108,7 +108,7 @@ def test_list_and_filter_appointments(authed):
 
 def test_create_reschedule_cancel_appointment(authed):
     tuesday = next_weekday(1)
-    resp = authed.post("/admin/api/appointments", json={"customer_id": 1, "starts_at": at(tuesday, 9), "treatment": "Zahnreinigung"})
+    resp = authed.post("/admin/api/appointments", json={"customer_id": 1, "starts_at": at(tuesday, 9), "treatment": "Professionelle Zahnreinigung"})
     assert resp.status_code == 201
     appt_id = resp.json()["id"]
     assert at(tuesday, 9)[11:16] not in [s[11:16] for s in authed.get("/admin/api/free-slots", params={"day": str(tuesday)}).json()]
@@ -124,14 +124,14 @@ def test_create_reschedule_cancel_appointment(authed):
 
 def test_booking_rules_apply_to_admin(authed):
     def book(starts_at):
-        return authed.post("/admin/api/appointments", json={"customer_id": 1, "starts_at": starts_at, "treatment": "x"})
+        return authed.post("/admin/api/appointments", json={"customer_id": 1, "starts_at": starts_at, "treatment": "Beratung"})
 
     assert "bereits vergeben" in book(at(next_weekday(0), 10)).json()["detail"]
     assert "Vergangenheit" in book((datetime.now() - timedelta(days=1)).isoformat()).json()["detail"]
     assert "Öffnungszeiten" in book(at(next_weekday(5), 10)).json()["detail"]
     assert "Raster" in book(at(next_weekday(1), 9, 10)).json()["detail"]
     assert book(at(next_weekday(1), 9)).status_code == 201
-    assert authed.post("/admin/api/appointments", json={"customer_id": 99, "starts_at": at(next_weekday(1), 10), "treatment": "x"}).status_code == 404
+    assert authed.post("/admin/api/appointments", json={"customer_id": 99, "starts_at": at(next_weekday(1), 10), "treatment": "Beratung"}).status_code == 404
 
 
 def test_create_and_update_customer(authed):
@@ -157,3 +157,9 @@ def test_toggle_invoice_status(authed):
     assert authed.patch("/admin/api/invoices/1", json={"status": "paid"}).json()["status"] == "paid"
     assert authed.get("/admin/api/invoices", params={"status": "open"}).json() == []
     assert authed.patch("/admin/api/invoices/1", json={"status": "bezahlt"}).status_code == 422
+
+
+def test_only_listed_treatments(authed):
+    assert authed.get("/admin/api/treatments").json()[:2] == ["Kontrolluntersuchung", "Professionelle Zahnreinigung"]
+    resp = authed.post("/admin/api/appointments", json={"customer_id": 1, "starts_at": at(next_weekday(1), 9), "treatment": "Zahnreinigung"})
+    assert resp.status_code == 422

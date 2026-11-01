@@ -4,6 +4,7 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
 
+from app.booking import Treatment
 from app.config import settings
 from app.deps import CallSession
 from app.tools import auth, call, protected, public
@@ -24,12 +25,15 @@ und Geburtsdatum. Kundennummern haben genau 5 Ziffern. Bitte den Kunden, sie lan
 verstehst du nicht genau 5 Ziffern, bitte um Wiederholung, ohne verify_customer aufzurufen. \
 Frage beides ab, bevor du verifizierst. Nenne nie Daten einer anderen Person und verrate nicht, \
 welcher Teil der Angaben falsch war. Bei Zeitwünschen prüfe free_slots, bevor du buchst oder verschiebst. \
-Lass Stornierungen vorher bestätigen.
+Buchen, Verschieben und Stornieren gehen immer in zwei Schritten: propose_booking, propose_reschedule oder propose_cancellation \
+merken die Änderung nur vor und liefern eine Frage. Diese Frage stellst du dem Kunden; behaupte nie, etwas sei schon gebucht, \
+verschoben oder storniert. confirm_change rufst du erst nach seinem klaren Ja auf, nie im selben Zug. \
+Behandlungen nennst du immer mit ihrem exakten Namen ({treatments}), nie mit Kurzformen wie nur "Zahnreinigung".
 
 Medizinische Beratung gibst du nicht. Bei akuten Beschwerden verweist du auf die Notfallregelung.
 Sobald der Kunde sich verabschiedet oder nichts mehr braucht, rufst du end_call auf (immer, auch bei kurzem "tschüss") \
 und verabschiedest dich danach in einem kurzen Satz.
-"""
+""".format(treatments=", ".join(Treatment))
 
 model = OpenAIChatModel(
     settings.llm_model,
@@ -38,11 +42,14 @@ model = OpenAIChatModel(
     settings={"extra_body": {"reasoning_effort": settings.llm_reasoning}, "temperature": 0.2},
 )
 
+# One agent for all calls; per-call state (verification, pending change) lives in CallSession deps
 agent = Agent(model, name="practice_agent", deps_type=CallSession, instructions=INSTRUCTIONS)
 
 
 @agent.instructions
 def today(ctx: RunContext[CallSession]) -> str:
+    # Re-evaluated every run: small models can't do date arithmetic, so we hand them a ready-made calendar
+    # to resolve "nächsten Dienstag" against, plus the verification state so they don't re-ask
     now = datetime.now()
     status = "verifiziert" if ctx.deps.customer_id else "nicht verifiziert"
     calendar = ", ".join(
@@ -54,6 +61,7 @@ def today(ctx: RunContext[CallSession]) -> str:
     )
 
 
+# public: always available; protected: check ctx.deps.customer_id themselves and refuse before verify_customer
 for fn in (
     public.search_knowledge,
     public.read_knowledge,
@@ -61,9 +69,10 @@ for fn in (
     public.free_slots,
     auth.verify_customer,
     protected.get_appointments,
-    protected.book_appointment,
-    protected.reschedule_appointment,
-    protected.cancel_appointment,
+    protected.propose_booking,
+    protected.propose_reschedule,
+    protected.propose_cancellation,
+    protected.confirm_change,
     protected.get_invoices,
     call.end_call,
 ):

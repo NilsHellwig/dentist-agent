@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Literal
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -10,11 +12,25 @@ class CallEnded(Exception):
 
 
 @dataclass
+class PendingChange:
+    """A booking, reschedule or cancellation that waits for the customer's explicit yes."""
+
+    action: Literal["book", "reschedule", "cancel"]
+    turn: int  # customer turn in which it was proposed; only the next turn may confirm it
+    question: str  # what the agent asks the customer, e.g. "Soll ich ... verschieben?"
+    starts_at: datetime | None = None
+    treatment: str | None = None
+    appointment_id: int | None = None
+
+
+@dataclass
 class CallSession:
     """State of one call; passed to every tool as Pydantic AI deps."""
 
     db_factory: sessionmaker[Session] = SessionLocal
-    customer_id: int | None = None
+    customer_id: int | None = None  # set by verify_customer; unlocks the protected tools
     failed_attempts: int = 0
-    locked: bool = False
+    locked: bool = False  # after max_auth_attempts failures; lasts for the rest of the call
     ended: bool = False
+    turn: int = 0  # incremented per customer utterance
+    pending: PendingChange | None = None
