@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2d353a"/>
+      <stop offset="1" stop-color="#171b1e"/>
+    </linearGradient>
+    <radialGradient id="orb" cx="0.36" cy="0.3" r="0.85">
+      <stop offset="0" stop-color="#e3f1ec"/>
+      <stop offset="0.45" stop-color="#93b8ac"/>
+      <stop offset="1" stop-color="#46695f"/>
+    </radialGradient>
+    <linearGradient id="aurora1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6fd0b0" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#4a8f86" stop-opacity="0.15"/>
+    </linearGradient>
+    <linearGradient id="aurora2" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b6a7e8" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#6fd0b0" stop-opacity="0.1"/>
+    </linearGradient>
+    <filter id="blur" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="30"/>
+    </filter>
+    <clipPath id="clip"><rect width="512" height="512" rx="116"/></clipPath>
+  </defs>
+  <g clip-path="url(#clip)">
+    <rect width="512" height="512" fill="url(#bg)"/>
+    <g filter="url(#blur)">
+      <path d="M-40 150 C 120 40, 260 210, 380 90 S 520 40, 560 70 L 560 200 C 430 260, 300 120, 160 250 S -10 300 -40 260 Z" fill="url(#aurora1)"/>
+      <path d="M-40 330 C 100 250, 240 400, 360 300 S 500 260, 560 300 L 560 400 C 420 470, 280 380, 140 450 S 0 470 -40 440 Z" fill="url(#aurora2)"/>
+    </g>
+    <circle cx="256" cy="262" r="214" fill="none" stroke="#9fc4b8" stroke-opacity="0.18" stroke-width="3"/>
+    <circle cx="256" cy="262" r="168" fill="none" stroke="#9fc4b8" stroke-opacity="0.38" stroke-width="3"/>
+    <circle cx="256" cy="262" r="116" fill="url(#orb)"/>
+    <ellipse cx="222" cy="222" rx="40" ry="26" fill="#ffffff" fill-opacity="0.35" transform="rotate(-28 222 222)"/>
+  </g>
+</svg>
