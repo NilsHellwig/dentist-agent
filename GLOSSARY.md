@@ -9,6 +9,8 @@
 | Invoice | Rechnung | Amount billed to a customer. |
 | `open` | offen | Invoice status: not yet paid. |
 | `paid` | bezahlt | Invoice status: settled. |
+| Treatment | Behandlung | One of the fixed names in `Treatment` (`app/booking.py`): Kontrolluntersuchung, Professionelle Zahnreinigung, Kinder-Kontrolle, Fluoridierung, Beratung. Always spelled exactly so, never shortened. |
+| Pending change | vorgemerkte Änderung | A booking, reschedule or cancellation the agent proposed; it only happens after the customer's explicit yes in their next turn (`confirm_change`). |
 | Slot | Terminzeit | A 30-minute start time within opening hours (`app/booking.py`). |
 | Verification | Verifizierung | Unlocking personal data in a call via customer number + birth date. |
 | Admin | Admin | Practice staff using the dashboard at `/admin`; one shared login from `.env`. |

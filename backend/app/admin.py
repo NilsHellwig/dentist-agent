@@ -18,6 +18,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app import booking
+from app.booking import Treatment
 from app.config import settings
 from app.db.models import Appointment, AppointmentStatus, Customer, Invoice, InvoiceStatus, SessionLocal
 
@@ -140,7 +141,7 @@ class CustomerIn(BaseModel):
 class AppointmentIn(BaseModel):
     customer_id: int
     starts_at: datetime
-    treatment: str = Field(min_length=1, max_length=128)
+    treatment: Treatment
 
 
 class RescheduleIn(BaseModel):
@@ -198,7 +199,7 @@ def list_appointments(
 @protected.post("/appointments", status_code=201)
 def create_appointment(body: AppointmentIn, db: DB) -> AppointmentOut:
     _get_or_404(db, Customer, body.customer_id)
-    appt = _book_or_409(booking.book, db, body.customer_id, body.starts_at, body.treatment.strip())
+    appt = _book_or_409(booking.book, db, body.customer_id, body.starts_at, body.treatment)
     db.refresh(appt)
     return appt
 
@@ -215,6 +216,11 @@ def cancel_appointment(appointment_id: int, db: DB) -> AppointmentOut:
     appt = _get_or_404(db, Appointment, appointment_id)
     booking.cancel(db, appt)
     return appt
+
+
+@protected.get("/treatments")
+def list_treatments() -> list[Treatment]:
+    return list(Treatment)
 
 
 @protected.get("/free-slots")

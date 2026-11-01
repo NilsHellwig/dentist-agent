@@ -5,9 +5,10 @@ from pydantic_ai import RunContext
 from sqlalchemy import select
 
 from app import booking
+from app.booking import Treatment
 from app.db.models import Appointment, AppointmentStatus, Invoice
-from app.deps import CallSession
-from app.tools.public import WEEKDAYS
+from app.deps import CallSession, PendingChange
+from app.tools.public import MONTHS, WEEKDAYS
 
 NOT_VERIFIED = "Nicht verifiziert: zuerst verify_customer mit Kundennummer und Geburtsdatum aufrufen."
 
@@ -43,22 +44,38 @@ def get_appointments(ctx: RunContext[CallSession]) -> list[AppointmentInfo] | st
         return [AppointmentInfo(id=a.id, starts_at=a.starts_at, weekday=WEEKDAYS[a.starts_at.weekday()], treatment=a.treatment) for a in rows]
 
 
-def book_appointment(ctx: RunContext[CallSession], starts_at: datetime, treatment: str) -> str:
-    """Books an appointment for the verified customer. Check the time with free_slots first.
+def _when(starts_at: datetime) -> str:
+    # "4. November" instead of "04.11.2026": the model misreads leading zeros (said "vierzehnten" for 04.11.)
+    year = f" {starts_at.year}" if starts_at.year != datetime.now().year else ""
+    return f"{WEEKDAYS[starts_at.weekday()]}, {starts_at.day}. {MONTHS[starts_at.month - 1]}{year} um {starts_at:%H:%M} Uhr"
+
+
+def _propose(s: CallSession, change: PendingChange) -> str:
+    s.pending = change
+    return (
+        f"Noch nicht ausgeführt. Frage den Kunden jetzt ausdrücklich, ob er das möchte: {change.summary}. "
+        "Rufe confirm_change erst auf, wenn er in seiner nächsten Antwort klar zustimmt."
+    )
+
+
+def book_appointment(ctx: RunContext[CallSession], starts_at: datetime, treatment: Treatment) -> str:
+    """Proposes a booking for the verified customer; nothing is booked until confirm_change. Check the time with free_slots first.
 
     Args:
         starts_at: Start as YYYY-MM-DDTHH:MM.
-        treatment: Treatment in German, e.g. 'Kontrolluntersuchung'.
+        treatment: Treatment, exactly one of the listed names.
     """
     s = ctx.deps
     if s.customer_id is None:
         return NOT_VERIFIED
     with s.db_factory() as db:
         try:
-            appt = booking.book(db, s.customer_id, starts_at, treatment)
+            booking.check_slot(db, starts_at)
         except booking.BookingError as e:
             return str(e)
-        return f"Gebucht: {treatment} am {WEEKDAYS[starts_at.weekday()]}, {starts_at:%d.%m.%Y um %H:%M} Uhr (Termin-ID {appt.id})."
+    return _propose(
+        s, PendingChange("book", s.turn, f"{treatment} am {_when(starts_at)} buchen", starts_at=starts_at, treatment=treatment)
+    )
 
 
 def _own_appointment(db, s: CallSession, appointment_id: int) -> Appointment | None:
@@ -69,7 +86,7 @@ def _own_appointment(db, s: CallSession, appointment_id: int) -> Appointment | N
 
 
 def reschedule_appointment(ctx: RunContext[CallSession], appointment_id: int, new_starts_at: datetime) -> str:
-    """Moves one of the customer's own appointments. Check the new time with free_slots first.
+    """Proposes moving one of the customer's own appointments; nothing changes until confirm_change. Check the new time with free_slots first.
 
     Args:
         appointment_id: ID from get_appointments.
@@ -83,14 +100,15 @@ def reschedule_appointment(ctx: RunContext[CallSession], appointment_id: int, ne
         if appt is None:
             return "Termin nicht gefunden."
         try:
-            booking.reschedule(db, appt, new_starts_at)
+            booking.check_slot(db, new_starts_at, ignore_id=appt.id)
         except booking.BookingError as e:
             return str(e)
-        return f"Verschoben auf {WEEKDAYS[new_starts_at.weekday()]}, {new_starts_at:%d.%m.%Y um %H:%M} Uhr."
+        summary = f"{appt.treatment} von {_when(appt.starts_at)} auf {_when(new_starts_at)} verschieben"
+    return _propose(s, PendingChange("reschedule", s.turn, summary, starts_at=new_starts_at, appointment_id=appointment_id))
 
 
 def cancel_appointment(ctx: RunContext[CallSession], appointment_id: int) -> str:
-    """Cancels one of the customer's own appointments. Have the customer confirm first.
+    """Proposes cancelling one of the customer's own appointments; nothing changes until confirm_change.
 
     Args:
         appointment_id: ID from get_appointments.
@@ -102,8 +120,38 @@ def cancel_appointment(ctx: RunContext[CallSession], appointment_id: int) -> str
         appt = _own_appointment(db, s, appointment_id)
         if appt is None:
             return "Termin nicht gefunden."
-        booking.cancel(db, appt)
-        return "Termin storniert."
+        summary = f"{appt.treatment} am {_when(appt.starts_at)} stornieren"
+    return _propose(s, PendingChange("cancel", s.turn, summary, appointment_id=appointment_id))
+
+
+def confirm_change(ctx: RunContext[CallSession]) -> str:
+    """Carries out the proposed booking, reschedule or cancellation. Only call this after the customer explicitly said yes to it."""
+    s = ctx.deps
+    change = s.pending
+    if s.customer_id is None:
+        return NOT_VERIFIED
+    if change is None or s.turn > change.turn + 1:
+        s.pending = None
+        return "Es gibt keine offene Änderung. Schlage sie erneut vor und lass sie bestätigen."
+    if s.turn == change.turn:
+        # enforced in code: the customer must have answered the question first
+        return f"Noch nicht bestätigt. Frage den Kunden zuerst: {change.summary}?"
+    s.pending = None
+    with s.db_factory() as db:
+        try:
+            if change.action == "book":
+                appt = booking.book(db, s.customer_id, change.starts_at, change.treatment)
+                return f"Gebucht: {change.treatment} am {_when(appt.starts_at)}."
+            appt = _own_appointment(db, s, change.appointment_id)
+            if appt is None:
+                return "Termin nicht gefunden."
+            if change.action == "reschedule":
+                booking.reschedule(db, appt, change.starts_at)
+                return f"Verschoben auf {_when(change.starts_at)}."
+            booking.cancel(db, appt)
+            return "Termin storniert."
+        except booking.BookingError as e:
+            return str(e)
 
 
 def get_invoices(ctx: RunContext[CallSession]) -> list[InvoiceInfo] | str:

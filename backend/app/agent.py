@@ -4,6 +4,7 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
 
+from app.booking import Treatment
 from app.config import settings
 from app.deps import CallSession
 from app.tools import auth, call, protected, public
@@ -24,12 +25,14 @@ und Geburtsdatum. Kundennummern haben genau 5 Ziffern. Bitte den Kunden, sie lan
 verstehst du nicht genau 5 Ziffern, bitte um Wiederholung, ohne verify_customer aufzurufen. \
 Frage beides ab, bevor du verifizierst. Nenne nie Daten einer anderen Person und verrate nicht, \
 welcher Teil der Angaben falsch war. Bei Zeitwünschen prüfe free_slots, bevor du buchst oder verschiebst. \
-Lass Stornierungen vorher bestätigen.
+Buchen, Verschieben und Stornieren gehen immer in zwei Schritten: Das Tool merkt die Änderung nur vor, dann fragst du den Kunden \
+ausdrücklich, ob er genau das möchte, und rufst confirm_change erst nach seinem klaren Ja auf, nie im selben Zug. \
+Behandlungen nennst du immer mit ihrem exakten Namen ({treatments}), nie mit Kurzformen wie nur "Zahnreinigung".
 
 Medizinische Beratung gibst du nicht. Bei akuten Beschwerden verweist du auf die Notfallregelung.
 Sobald der Kunde sich verabschiedet oder nichts mehr braucht, rufst du end_call auf (immer, auch bei kurzem "tschüss") \
 und verabschiedest dich danach in einem kurzen Satz.
-"""
+""".format(treatments=", ".join(Treatment))
 
 model = OpenAIChatModel(
     settings.llm_model,
@@ -64,6 +67,7 @@ for fn in (
     protected.book_appointment,
     protected.reschedule_appointment,
     protected.cancel_appointment,
+    protected.confirm_change,
     protected.get_invoices,
     call.end_call,
 ):

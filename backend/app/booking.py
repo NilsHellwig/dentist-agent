@@ -4,6 +4,7 @@ Error messages are German because both the voice agent and the admin UI pass the
 """
 
 from datetime import date, datetime, time, timedelta
+from enum import StrEnum
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,11 +16,21 @@ OPENING_HOURS = {0: (8, 17), 1: (8, 17), 2: (8, 17), 3: (8, 17), 4: (8, 13)}
 SLOT_MINUTES = 30
 
 
+class Treatment(StrEnum):
+    """Bookable treatments. Values are the German names the agent speaks and the database stores."""
+
+    CHECKUP = "Kontrolluntersuchung"
+    PROFESSIONAL_CLEANING = "Professionelle Zahnreinigung"
+    CHILD_CHECKUP = "Kinder-Kontrolle"
+    FLUORIDATION = "Fluoridierung"
+    CONSULTATION = "Beratung"
+
+
 class BookingError(Exception):
     pass
 
 
-def _check_slot(db: Session, starts_at: datetime, ignore_id: int | None = None) -> None:
+def check_slot(db: Session, starts_at: datetime, ignore_id: int | None = None) -> None:
     if starts_at <= datetime.now():
         raise BookingError("Der Zeitpunkt liegt in der Vergangenheit.")
     hours = OPENING_HOURS.get(starts_at.weekday())
@@ -57,8 +68,8 @@ def free_slots(db: Session, day: date) -> list[datetime]:
     return slots
 
 
-def book(db: Session, customer_id: int, starts_at: datetime, treatment: str) -> Appointment:
-    _check_slot(db, starts_at)
+def book(db: Session, customer_id: int, starts_at: datetime, treatment: Treatment) -> Appointment:
+    check_slot(db, starts_at)
     appt = Appointment(customer_id=customer_id, starts_at=starts_at, treatment=treatment)
     db.add(appt)
     db.commit()
@@ -68,7 +79,7 @@ def book(db: Session, customer_id: int, starts_at: datetime, treatment: str) -> 
 def reschedule(db: Session, appt: Appointment, new_starts_at: datetime) -> None:
     if appt.status != AppointmentStatus.SCHEDULED:
         raise BookingError("Stornierte Termine können nicht verschoben werden.")
-    _check_slot(db, new_starts_at, ignore_id=appt.id)
+    check_slot(db, new_starts_at, ignore_id=appt.id)
     appt.starts_at = new_starts_at
     db.commit()
 

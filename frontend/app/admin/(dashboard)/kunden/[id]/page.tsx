@@ -14,7 +14,7 @@ import {
   SlotPicker,
   StatusBadge,
 } from "@/components/admin/ui";
-import { api, type CustomerDetail, formatDate, formatDateTime, formatEuro, fullName, TREATMENTS, useLoad } from "@/lib/admin";
+import { api, type CustomerDetail, formatDate, formatDateTime, formatEuro, fullName, useLoad } from "@/lib/admin";
 
 export default function CustomerPage() {
   const { id } = useParams<{ id: string }>();
@@ -138,6 +138,7 @@ function NewAppointment({ customerId, onBooked }: { customerId: number; onBooked
   const [slot, setSlot] = useState("");
   const [treatment, setTreatment] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const { data: treatments } = useLoad<string[]>("/treatments");
 
   async function book(e: React.FormEvent) {
     e.preventDefault();
@@ -159,12 +160,14 @@ function NewAppointment({ customerId, onBooked }: { customerId: number; onBooked
         <SlotPicker value={slot} onChange={setSlot} />
         <label className={labelClass}>
           Behandlung
-          <input value={treatment} onChange={(e) => setTreatment(e.target.value)} list="treatments" className={inputClass} required />
-          <datalist id="treatments">
-            {TREATMENTS.map((t) => (
-              <option key={t} value={t} />
+          <select value={treatment} onChange={(e) => setTreatment(e.target.value)} className={inputClass} required>
+            <option value="">Bitte wählen</option>
+            {treatments?.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
             ))}
-          </datalist>
+          </select>
         </label>
         <button type="submit" disabled={!slot} className={buttonClass}>
           Buchen

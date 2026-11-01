@@ -18,6 +18,7 @@ def main(scripted: list[str]) -> None:
             break
         if scripted:
             print(f"Du: {text}")
+        session.turn += 1
         try:
             result = agent.run_sync(text, deps=session, message_history=history)
         except CallEnded:

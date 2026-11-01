@@ -25,15 +25,6 @@ export const STATUS_LABELS: Record<AppointmentStatus | InvoiceStatus, string> = 
   paid: "Bezahlt",
 };
 
-export const TREATMENTS = [
-  "Kontrolluntersuchung",
-  "Professionelle Zahnreinigung",
-  "Prophylaxe",
-  "Kinder-Kontrolle",
-  "Füllung",
-  "Beratung",
-];
-
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   const resp = await fetch(`/admin/api${path}`, {
     method: init.method ?? "GET",

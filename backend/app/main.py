@@ -108,6 +108,7 @@ async def call(ws: WebSocket) -> None:
                 await ws.send_json({"type": "turn_done"})
                 continue
             await ws.send_json({"type": "user_text", "text": text})
+            session.turn += 1
             reply = FAREWELL
             try:
                 async with asyncio.timeout(AGENT_TIMEOUT_S):

@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.booking import Treatment
 from app.db.models import Appointment, Base, Customer
 from app.deps import CallEnded, CallSession
 from app.tools import auth, call, protected, public
@@ -36,13 +37,21 @@ def verify(ctx, number="10001", birth=date(1988, 4, 12)):
     return auth.verify_customer(ctx, number, birth)
 
 
+CHECKUP = Treatment.CHECKUP
+
+
+def next_turn(ctx):
+    ctx.deps.turn += 1
+
+
 def test_protected_tools_require_verification(ctx):
     start = datetime.combine(next_weekday(1), datetime.min.time()).replace(hour=9)
     for result in (
         protected.get_appointments(ctx),
-        protected.book_appointment(ctx, start, "Kontrolle"),
+        protected.book_appointment(ctx, start, CHECKUP),
         protected.reschedule_appointment(ctx, 1, start),
         protected.cancel_appointment(ctx, 1),
+        protected.confirm_change(ctx),
         protected.get_invoices(ctx),
     ):
         assert result == protected.NOT_VERIFIED
@@ -84,21 +93,64 @@ def test_cannot_touch_foreign_appointment(ctx):
 def test_book_and_cancel_roundtrip(ctx):
     verify(ctx)
     start = datetime.combine(next_weekday(1), datetime.min.time()).replace(hour=9)
-    assert protected.book_appointment(ctx, start, "Kontrolle").startswith("Gebucht")
-    assert [a.treatment for a in protected.get_appointments(ctx)] == ["Kontrolle"]
-    assert "bereits vergeben" in protected.book_appointment(ctx, start, "Zahnreinigung")
+    assert protected.book_appointment(ctx, start, CHECKUP).startswith("Noch nicht ausgeführt")
+    next_turn(ctx)
+    assert protected.confirm_change(ctx).startswith("Gebucht: Kontrolluntersuchung")
+    assert [a.treatment for a in protected.get_appointments(ctx)] == ["Kontrolluntersuchung"]
+    assert "bereits vergeben" in protected.book_appointment(ctx, start, Treatment.PROFESSIONAL_CLEANING)
     appt_id = protected.get_appointments(ctx)[0].id
-    assert protected.cancel_appointment(ctx, appt_id) == "Termin storniert."
+    next_turn(ctx)
+    protected.cancel_appointment(ctx, appt_id)
+    next_turn(ctx)
+    assert protected.confirm_change(ctx) == "Termin storniert."
     assert protected.get_appointments(ctx) == []
+
+
+def test_changes_need_confirmation_in_next_turn(ctx):
+    verify(ctx)
+    start = datetime.combine(next_weekday(1), datetime.min.time()).replace(hour=9)
+    protected.book_appointment(ctx, start, CHECKUP)
+    # same turn: the customer hasn't answered yet
+    assert protected.confirm_change(ctx).startswith("Noch nicht bestätigt")
+    assert protected.get_appointments(ctx) == []
+    # two turns later the proposal has expired
+    next_turn(ctx)
+    next_turn(ctx)
+    assert protected.confirm_change(ctx).startswith("Es gibt keine offene Änderung")
+    assert protected.get_appointments(ctx) == []
+    assert protected.confirm_change(ctx).startswith("Es gibt keine offene Änderung")
+
+
+def test_reschedule_and_cancel_wait_for_confirmation(ctx):
+    verify(ctx, "10002", date(1990, 1, 1))
+    [appt] = protected.get_appointments(ctx)
+    new_start = datetime.combine(next_weekday(2), datetime.min.time()).replace(hour=11)
+    assert "verschieben" in protected.reschedule_appointment(ctx, appt.id, new_start)
+    protected.cancel_appointment(ctx, appt.id)  # a newer proposal replaces the older one
+    assert protected.get_appointments(ctx)[0].starts_at == appt.starts_at
+    next_turn(ctx)
+    assert protected.confirm_change(ctx) == "Termin storniert."
+
+
+def test_slot_taken_before_confirmation(ctx):
+    verify(ctx)
+    start = datetime.combine(next_weekday(1), datetime.min.time()).replace(hour=9)
+    protected.book_appointment(ctx, start, CHECKUP)
+    with ctx.deps.db_factory() as db:
+        db.add(Appointment(customer_id=2, starts_at=start, treatment=CHECKUP))
+        db.commit()
+    next_turn(ctx)
+    assert "bereits vergeben" in protected.confirm_change(ctx)
 
 
 def test_booking_rules(ctx):
     verify(ctx)
     day = datetime.min.time()
-    assert "Vergangenheit" in protected.book_appointment(ctx, datetime.now() - timedelta(days=1), "x")
-    assert "Öffnungszeiten" in protected.book_appointment(ctx, datetime.combine(next_weekday(5), day).replace(hour=10), "x")
-    assert "Öffnungszeiten" in protected.book_appointment(ctx, datetime.combine(next_weekday(4), day).replace(hour=14), "x")
-    assert "Raster" in protected.book_appointment(ctx, datetime.combine(next_weekday(1), day).replace(hour=9, minute=10), "x")
+    assert "Vergangenheit" in protected.book_appointment(ctx, datetime.now() - timedelta(days=1), CHECKUP)
+    assert "Öffnungszeiten" in protected.book_appointment(ctx, datetime.combine(next_weekday(5), day).replace(hour=10), CHECKUP)
+    assert "Öffnungszeiten" in protected.book_appointment(ctx, datetime.combine(next_weekday(4), day).replace(hour=14), CHECKUP)
+    assert "Raster" in protected.book_appointment(ctx, datetime.combine(next_weekday(1), day).replace(hour=9, minute=10), CHECKUP)
+    assert ctx.deps.pending is None
 
 
 def test_free_slots_respect_booked_and_weekend(ctx):
